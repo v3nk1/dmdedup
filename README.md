@@ -10,40 +10,40 @@ savings.
 
 Construction Parameters
 =======================
-	'meta_dev' 'data_dev' 'block_size'
-	'hash_algo' 'backend' 'flushrq'
+	[meta_dev] [data_dev] [block_size]
+	[hash_algo] [backend] [flushrq]
 
-'meta_dev'
-	This is the device where dm-dedup's metadata resides.  Metadata
+[meta_dev]
+	This is the device where dm-dedup]s metadata resides.  Metadata
 	typically includes hash index, block mapping, and reference counters.
 	It should be specified as a path, like "/dev/sdaX".
 
-'data_dev'
+[data_dev]
 	This is the device where the actual data blocks are stored.
 	It should be specified as a path, like "/dev/sdaX".
 
-'block_size'
+[block_size]
 	This is the size of a single block on the data device in bytes.
 	Block is both a unit of deduplication and a unit of storage.
 	Supported values are between 4096 to 1048576 (1MB) and should be
 	a power of two.
 
-'hash_algo'
+[hash_algo]
 	This specifies which hashing algorithm dm-dedup will use for detecting
 	identical blocks, e.g., "md5" or "sha256". Any hash algorithm
 	supported by the running kernel can be used (see "/proc/crypto" file).
 
-'backend'
+[backend]
 	This is the backend that dm-dedup will use to store metadata.
 	Currently supported values are "cowbtree" and "inram".
 	Cowbtree backend uses persistent Copy-on-Write (COW) B-Trees to store
 	metadata. Inram backend stores all metadata in RAM which is
 	lost after a system reboot. Consequently, inram backend should
 	typically be used only for experiments. Notice, that though inram
-	backend does not use metadata device, 'meta_dev' parameter
+	backend does not use metadata device, [meta_dev] parameter
 	should still be specified in the command line.
 
-'flushrq'
+[flushrq]
 	This parameter specifies how many writes to the target should occur
 	before dm-dedup flushes its buffered metadata to the metadata device.
 	In other words, in an event of power failure, one can loose up to this
@@ -144,28 +144,28 @@ Dmsetup Status
 Dm-dedup exports various statistics via dmsetup status command. The line
 returned by dmsetup status will contain the following values in the order:
 
-'name' 'start' 'end' 'type' 					\
-'dtotal' 'dfree' 'dused' 'dactual' 'dblock' 'ddisk' 'mddisk' 	\
-'writes''uniqwrites' 'dupwrites' 'readonwrites' 'overwrites' 'newwrites'
+[name] [start] [end] [type]
+[dtotal] [dfree] [dused] [dactual] [dblock] [ddisk] [mddisk]
+[writes] [uniqwrites] [dupwrites] [readonwrites] [overwrites] [newwrites]
 
-'name', 'start', 'end', and 'type' are generic fields printed by dmsetup tool
+]name], [start], [end], and [type] are generic fields printed by dmsetup tool
 for any target.
 
-5.  'dtotal'       - total number of blocks on the data device\n
-6.  'dfree'        - number of free (unallocated) blocks on the data device\n
-7.  'dused'        - number of used (allocated) blocks on the data device\n
-8.  'dactual'      - number of allocated logical blocks (were written at least once)\n
-9.  'dblock'       - block size in bytes\n
-10. 'ddisk'        - data disk's major:minor\n
-11. 'mddisk'       - metadata disk's major:minor\n
-12. 'writes'       - total number of writes to the target\n
-13. 'uniqwrites'   - the number of writes that weren't duplicates (wereunique)
-14. 'dupwrites'    - the number of writes that were duplicates
-15. 'readonwrites' - the number of times dm-dedup had to read data from the data
+5.  [dtotal]       - total number of blocks on the data device\n
+6.  [dfree]        - number of free (unallocated) blocks on the data device\n
+7.  [dused]        - number of used (allocated) blocks on the data device\n
+8.  [dactual]      - number of allocated logical blocks (were written at least once)\n
+9.  [dblock]       - block size in bytes\n
+10. [ddisk]        - data disk]s major:minor\n
+11. [mddisk]       - metadata disk]s major:minor\n
+12. [writes]       - total number of writes to the target\n
+13. [uniqwrites]   - the number of writes that weren]t duplicates (wereunique)
+14. [dupwrites]    - the number of writes that were duplicates
+15. [readonwrites] - the number of times dm-dedup had to read data from the data
 		     device because a write was misaligned (read-on-write effect)
-16. 'overwrites'   - the number of writes to a logical block that was
+16. [overwrites]   - the number of writes to a logical block that was
 		     written before at least once
-17. 'newwrites'    - the number of writes to a logical address that was not written
+17. [newwrites]    - the number of writes to a logical address that was not written
 		     before even once
 
 To compute deduplication ratio one needs to device dactual by dused.
@@ -185,7 +185,7 @@ Reset metadata device:
    # dd if=/dev/zero of=$META_DEV bs=4096 count=1
 
 Setup a target:
-	echo "0 $TARGET_SIZE dedup $META_DEV $DATA_DEV 4096 md5 cowbtree 100" |\
+   # echo "0 $TARGET_SIZE dedup $META_DEV $DATA_DEV 4096 md5 cowbtree 100" |\
 				dmsetup create mydedup
 
 Authors
