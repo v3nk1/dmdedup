@@ -11,7 +11,6 @@
  */
 
 #include <linux/vmalloc.h>
-
 #include "dm-dedup-target.h"
 #include "dm-dedup-rw.h"
 #include "dm-dedup-hash.h"
@@ -48,14 +47,15 @@ enum backend {
 static void bio_zero_endio(struct bio *bio)
 {
 	zero_fill_bio(bio);
-	bio_endio(bio, 0);
+	bio_endio(bio);//, 0);
 }
 
 static uint64_t bio_lbn(struct dedup_config *dc, struct bio *bio)
 {
 	sector_t lbn = bio->bi_iter.bi_sector;
-
+	printk("%s(%d) lbn: %llu, sect/blk: %llu\n",__func__,__LINE__,lbn,dc->sectors_per_block);
 	sector_div(lbn, dc->sectors_per_block);
+	printk("%s(%d) lbn: %llu, sect/blk: %llu\n",__func__,__LINE__,lbn,dc->sectors_per_block);
 
 	return lbn;
 }
@@ -69,9 +69,12 @@ static void do_io_remap_device(struct dedup_config *dc, struct bio *bio)
 static void do_io(struct dedup_config *dc, struct bio *bio, uint64_t pbn)
 {
 	int offset;
-
+	printk("%s(%d) bi_sector: %llu, sec/blk: %u\n",__func__,__LINE__,
+			bio->bi_iter.bi_sector,dc->sectors_per_block);
 	offset = sector_div(bio->bi_iter.bi_sector, dc->sectors_per_block);
+	printk("%s(%d) bi_sector: %llu, offset: %u\n",__func__,__LINE__,bio->bi_iter.bi_sector,offset);
 	bio->bi_iter.bi_sector = (sector_t)pbn * dc->sectors_per_block + offset;
+	printk("%s(%d) bi_sector: %llu, offset: %u\n",__func__,__LINE__,bio->bi_iter.bi_sector,offset);
 
 	do_io_remap_device(dc, bio);
 }
@@ -122,10 +125,11 @@ static int write_to_new_block(struct dedup_config *dc, uint64_t *pbn_new,
 		r = -EIO;
 		return r;
 	}
-
+	printk("%s(%d) pbn_new: %llx\n",__func__,__LINE__,*pbn_new);
 	lbnpbn_value.pbn = *pbn_new;
 
 	do_io(dc, bio, *pbn_new);
+	printk("%s(%d) pbn_new: %llx\n",__func__,__LINE__,*pbn_new);
 
 	r = dc->kvs_lbn_pbn->kvs_insert(dc->kvs_lbn_pbn, (void *)&lbn,
 		sizeof(lbn), (void *)&lbnpbn_value, sizeof(lbnpbn_value));
@@ -138,16 +142,17 @@ static int write_to_new_block(struct dedup_config *dc, uint64_t *pbn_new,
 static int handle_write_no_hash(struct dedup_config *dc,
 				struct bio *bio, uint64_t lbn, u8 *hash)
 {
-	int r;
-	uint32_t vsize;
-	uint64_t pbn_new, pbn_old;
-	struct lbn_pbn_value lbnpbn_value;
-	struct hash_pbn_value hashpbn_value;
+	int r = -1;
+	uint32_t vsize = 0;
+	uint64_t pbn_new = 0, pbn_old = 0;
+	struct lbn_pbn_value lbnpbn_value = {0};
+	struct hash_pbn_value hashpbn_value = {0};
 
 	dc->uniqwrites++;
 
 	r = dc->kvs_lbn_pbn->kvs_lookup(dc->kvs_lbn_pbn, (void *)&lbn,
 			sizeof(lbn), (void *)&lbnpbn_value, &vsize);
+	printk("%s(%d) @lookup lbnpbn_value: %lu\n",__func__,__LINE__,lbnpbn_value.pbn);
 	if (r == 0) {
 		/* No LBN->PBN mapping entry */
 		dc->newwrites++;
@@ -235,17 +240,18 @@ static int handle_write_with_hash(struct dedup_config *dc, struct bio *bio,
 				  uint64_t lbn, u8 *final_hash,
 				  struct hash_pbn_value hashpbn_value)
 {
-	int r;
-	uint32_t vsize;
-	uint64_t pbn_new, pbn_old;
-	struct lbn_pbn_value lbnpbn_value;
-	struct lbn_pbn_value new_lbnpbn_value;
+	int r = -1;
+	uint32_t vsize = 0;
+	uint64_t pbn_new = 0, pbn_old = 0;
+	struct lbn_pbn_value lbnpbn_value = {0};
+	struct lbn_pbn_value new_lbnpbn_value = {0};
 
 	dc->dupwrites++;
 
 	pbn_new = hashpbn_value.pbn;
 	r = dc->kvs_lbn_pbn->kvs_lookup(dc->kvs_lbn_pbn, (void *)&lbn,
 			sizeof(lbn), (void *)&lbnpbn_value, &vsize);
+	printk("%s(%d) @lookup lbnpbn val: %lu\n",__func__,__LINE__,lbnpbn_value.pbn);
 	if (r == 0) {
 		/* No LBN->PBN mapping entry */
 		dc->newwrites++;
@@ -272,7 +278,7 @@ out_inc_refcount_1:
 		dc->newwrites--;
 out_1:
 		if (r >= 0)
-			bio_endio(bio, 0);
+			bio_endio(bio);//, 0);
 		else
 			dc->dupwrites--;
 		return r;
@@ -313,7 +319,7 @@ out_inc_refcount_2:
 	dc->overwrites--;
 out_2:
 	if (r >= 0)
-		bio_endio(bio, 0);
+		bio_endio(bio);//, 0);
 	else
 		dc->dupwrites--;
 	return r;
@@ -322,11 +328,11 @@ out_2:
 static int handle_write(struct dedup_config *dc, struct bio *bio)
 {
 	uint64_t lbn;
-	u8 hash[MAX_DIGEST_SIZE];
-	struct hash_pbn_value hashpbn_value;
-	uint32_t vsize;
+	u8 hash[MAX_DIGEST_SIZE] = {0}; /*16Byte Hash key*/
+	struct hash_pbn_value hashpbn_value = {0};
+	uint32_t vsize = 0;
 	struct bio *new_bio = NULL;
-	int r;
+	int r,i;
 
 	dc->writes++;
 
@@ -345,9 +351,14 @@ static int handle_write(struct dedup_config *dc, struct bio *bio)
 	if (r)
 		return r;
 
+	printk("%s(%d) MD5 Hash:\n",__func__,__LINE__);
+	for (i=0;i<MAX_DIGEST_SIZE;i++)
+		printk("%02x ",hash[i]);
+	printk("\n");
+	
 	r = dc->kvs_hash_pbn->kvs_lookup(dc->kvs_hash_pbn, hash,
 				dc->crypto_key_size, &hashpbn_value, &vsize);
-
+	printk("%s(%d) @lookup hashpbn_value: %lu\n",__func__,__LINE__,hashpbn_value);
 	if (r == 0)
 		r = handle_write_no_hash(dc, bio, lbn, hash);
 	else if (r > 0)
@@ -380,17 +391,18 @@ static void process_bio(struct dedup_config *dc, struct bio *bio)
 		do_io_remap_device(dc, bio);
 		return;
 	}
-
 	switch (bio_data_dir(bio)) {
 	case READ:
+		printk("%s(%d) Read Req\n",__func__,__LINE__);
 		r = handle_read(dc, bio);
 		break;
 	case WRITE:
+		printk("%s(%d) Write Req\n",__func__,__LINE__);
 		r = handle_write(dc, bio);
 	}
 
 	if (r < 0)
-		bio_endio(bio, r);
+		bio_endio(bio);//, r);
 }
 
 static void do_work(struct work_struct *ws)
@@ -410,7 +422,7 @@ static void dedup_defer_bio(struct dedup_config *dc, struct bio *bio)
 
 	data = mempool_alloc(dc->dedup_work_pool, GFP_NOIO);
 	if (!data) {
-		bio_endio(bio, -ENOMEM);
+		bio_endio(bio);//, -ENOMEM);
 		return;
 	}
 
@@ -424,6 +436,7 @@ static void dedup_defer_bio(struct dedup_config *dc, struct bio *bio)
 
 static int dm_dedup_map(struct dm_target *ti, struct bio *bio)
 {
+	printk("%s(%d) Invoked\n",__func__,__LINE__);
 	dedup_defer_bio(ti->private, bio);
 
 	return DM_MAPIO_SUBMITTED;
@@ -586,7 +599,18 @@ static int parse_dedup_args(struct dedup_args *da, int argc,
 	r = parse_flushrq(da, &as, err);
 	if (r)
 		return r;
-
+	printk("%s(%d): dm(begin,len): %s(%lu,%lu sectors), blksz: %d, datasz: %d, data_dev: %s\n" 
+		"meta_dev: %s, hash_algo: %s, backend_algo: %s, flushrq: %d\n",
+			__func__,__LINE__,
+			da->ti->type->name,da->ti->begin,da->ti->len,
+			da->block_size,
+			i_size_read(da->data_dev->bdev->bd_inode),
+			da->data_dev->name,
+			da->meta_dev->name,
+			da->hash_algo,
+			da->backend ? "cowbtree":"inram",
+			da->flushrq
+			);
 	return 0;
 }
 
@@ -699,7 +723,7 @@ static int dm_dedup_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	}
 
 	crypto_key_size = get_hash_digestsize(dc->desc_table);
-
+	printk("%s(%d) get_hash_digestsize: %u\n",__func__,__LINE__,crypto_key_size);
 	dc->kvs_hash_pbn = dc->mdops->kvs_create_sparse(md, crypto_key_size,
 				sizeof(struct hash_pbn_value),
 				dc->pblocks, unformatted);
@@ -802,12 +826,12 @@ static void dm_dedup_dtr(struct dm_target *ti)
 		ret = dc->mdops->set_private_data(dc->bmd, &data,
 				sizeof(struct on_disk_stats));
 		if (ret < 0)
-			DMERR("Failed to set the private data in superblock.");
+			printk("Failed to set the private data in superblock.");
 	}
 
 	ret = dc->mdops->flush_meta(dc->bmd);
 	if (ret < 0)
-		DMERR("Failed to flush the metadata to disk.");
+		printk("Failed to flush the metadata to disk.");
 
 	flush_workqueue(dc->workqueue);
 	destroy_workqueue(dc->workqueue);
@@ -843,14 +867,15 @@ static void dm_dedup_status(struct dm_target *ti, status_type_t status_type,
 
 		data_free_block_count =
 			data_total_block_count - data_used_block_count;
-
-		DMEMIT("%llu %llu %llu %llu ",
+		DMEMIT("\nblkcnt: total, free, used, actual: ");
+		DMEMIT("%llu %llu %llu %llu",
 			data_total_block_count, data_free_block_count,
 			data_used_block_count, data_actual_block_count);
-
+		DMEMIT("\nwr, uniqwr, dupwr, rds_on_wrs, overwr, newwr: ");
 		DMEMIT("%llu %llu %llu %llu %llu %llu",
 			dc->writes, dc->uniqwrites, dc->dupwrites,
 			dc->reads_on_writes, dc->overwrites, dc->newwrites);
+
 		break;
 	case STATUSTYPE_TABLE:
 		DMEMIT("%s %s %u %s %s %u",
@@ -913,11 +938,11 @@ static int dm_dedup_message(struct dm_target *ti,
 	int r = 0;
 
 	struct dedup_config *dc = ti->private;
-
+	printk("%s(%d) Invoked\n",__func__,__LINE__);
 	if (!strcasecmp(argv[0], "garbage_collect")) {
 		r = garbage_collect(dc);
 		if (r < 0)
-			DMERR("Error in performing garbage_collect: %d.", r);
+			printk("Error in performing garbage_collect: %d.", r);
 	} else if (!strcasecmp(argv[0], "drop_bufio_cache")) {
 		if (dc->mdops->flush_bufio_cache)
 			dc->mdops->flush_bufio_cache(dc->bmd);
@@ -925,7 +950,7 @@ static int dm_dedup_message(struct dm_target *ti,
 			r = -ENOTSUPP;
 	} else
 		r = -EINVAL;
-
+	printk("r=: %d\n",r);
 	return r;
 }
 

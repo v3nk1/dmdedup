@@ -92,14 +92,14 @@ static void copy_pages(struct page *src, struct bio *clone)
 	memmove(dest_page_vaddr, src_page_vaddr, DMD_IO_SIZE);
 }
 
-static void my_endio(struct bio *clone, int error)
+static void my_endio(struct bio *clone)//, int error)
 {
 	unsigned rw = bio_data_dir(clone);
 	struct bio *orig;
 	struct bio_vec bv;
 
-	if (!error && !bio_flagged(clone, BIO_UPTODATE))
-		error = -EIO;
+	//if (!error && !bio_flagged(clone, 0/*BIO_UPTODATE*/))
+	//	error = -EIO;
 
 	/* free the processed pages */
 	if (rw == WRITE || rw == READ) {
@@ -111,7 +111,7 @@ static void my_endio(struct bio *clone, int error)
 	}
 
 	orig = clone->bi_private;
-	bio_endio(orig, 0);
+	bio_endio(orig);
 
 	bio_put(clone);
 }

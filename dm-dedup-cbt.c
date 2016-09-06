@@ -224,7 +224,8 @@ static int superblock_all_zeroes(struct dm_block_manager *bm, bool *result)
 		}
 	}
 
-	return dm_bm_unlock(b);
+	dm_bm_unlock(b);
+	return 0;
 }
 
 static struct metadata *init_meta_cowbtree(void *input_param, bool *unformatted)
@@ -617,12 +618,15 @@ repeat:
 	r = dm_btree_lookup(&(kvcbt->info), kvcbt->root, &key_val, entry);
 	if (r == -ENODATA) {
 		kfree(entry);
-		return 0;
+		return 0; 	/* EOT, HASH not found */
 	} else if (r >= 0) {
 		if (!memcmp(entry, key, ksize)) {
-			memcpy(value, entry + ksize, kvs->vsize);
+			/*
+			 * Getting the PBN from already inserted HASH.
+			 */
+			memcpy(value, entry + ksize, kvs->vsize); 
 			kfree(entry);
-			return 1;
+			return 1; /* Found exact HASH match */
 		}
 		key_val++;
 		goto repeat;
@@ -653,16 +657,29 @@ static int kvs_insert_sparse_cowbtree(struct kvstore *kvs, void *key,
 	if (!entry)
 		return -ENOMEM;
 
-	key_val = (*(uint64_t *)key);
+	key_val = (*(uint64_t *)key); /* First 8Bytes of 16bytes HASH */
 
 
 repeat:
 
 	r = dm_btree_lookup(&(kvcbt->info), kvcbt->root, &key_val, entry);
 	if (r == -ENODATA) {
+		/* Steps needs to be done:
+		 * -----------------------
+		 * Navigate till EOT(end of tree)
+		 * Copy 16Bytes HASH. ksize = 16bytes;
+		 * Copy  8Bytes  PBN. vsize = 8bytes;
+		 */
 		memcpy(entry, key, ksize);
 		memcpy(entry + ksize, value, vsize);
 		__dm_bless_for_disk(&key_val);
+		/* 
+		 * 		HashPBN node:
+		 * 		=========================
+		 * 		|    16Bi      |   8Bi  | 
+		 * 		=========================
+		 * 		<--- Hash ----> <- PBN ->
+		 */
 		r = dm_btree_insert(&(kvcbt->info), kvcbt->root, &key_val,
 				    entry, &(kvcbt->root));
 		kfree(entry);
