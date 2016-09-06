@@ -143,9 +143,11 @@ Dmsetup Status
 Dm-dedup exports various statistics via dmsetup status command. The line
 returned by dmsetup status will contain the following values in the order:
 
-> [name] [start] [end] [type].
-> [dtotal] [dfree] [dused] [dactual] [dblock] [ddisk] [mddisk].
-> [writes] [uniqwrites] [dupwrites] [readonwrites] [overwrites] [newwrites].
+> [name] [start] [end] [type]
+
+> [dtotal] [dfree] [dused] [dactual] [dblock] [ddisk] [mddisk]
+
+> [writes] [uniqwrites] [dupwrites] [readonwrites] [overwrites] [newwrites]
 
 * [name], [start], [end], and [type] are generic fields printed by dmsetup tool 
 for any target.
@@ -157,7 +159,7 @@ for any target.
 * [ddisk]        - data disk]s major:minor.
 * [mddisk]       - metadata disk]s major:minor.
 * [writes]       - total number of writes to the target.
-* [uniqwrites]   - the number of writes that weren]t duplicates (wereunique).
+* [uniqwrites]   - the number of writes that weren't duplicates (wereunique).
 * [dupwrites]    - the number of writes that were duplicates.
 * [readonwrites] - the number of times dm-dedup had to read data from the data
     	         device because a write was misaligned (read-on-write effect).
