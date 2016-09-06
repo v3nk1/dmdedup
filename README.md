@@ -144,27 +144,27 @@ Dmsetup Status
 Dm-dedup exports various statistics via dmsetup status command. The line
 returned by dmsetup status will contain the following values in the order:
 
-[name] [start] [end] [type] ..
-[dtotal] [dfree] [dused] [dactual] [dblock] [ddisk] [mddisk] ..
-[writes] [uniqwrites] [dupwrites] [readonwrites] [overwrites] [newwrites]..
+...[name] [start] [end] [type] ..
+...[dtotal] [dfree] [dused] [dactual] [dblock] [ddisk] [mddisk] ..
+...[writes] [uniqwrites] [dupwrites] [readonwrites] [overwrites] [newwrites]..
 
-[name], [start], [end], and [type] are generic fields printed by dmsetup tool 
+...[name], [start], [end], and [type] are generic fields printed by dmsetup tool 
 for any target..
-[dtotal]       - total number of blocks on the data device..
-[dfree]        - number of free (unallocated) blocks on the data device..
-[dused]        - number of used (allocated) blocks on the data device..
-[dactual]      - number of allocated logical blocks (were written at least once)..
-[dblock]       - block size in bytes..
-[ddisk]        - data disk]s major:minor..
-[mddisk]       - metadata disk]s major:minor..
-[writes]       - total number of writes to the target..
-[uniqwrites]   - the number of writes that weren]t duplicates (wereunique)..
-[dupwrites]    - the number of writes that were duplicates..
-[readonwrites] - the number of times dm-dedup had to read data from the data
+...[dtotal]       - total number of blocks on the data device..
+...[dfree]        - number of free (unallocated) blocks on the data device..
+...[dused]        - number of used (allocated) blocks on the data device..
+...[dactual]      - number of allocated logical blocks (were written at least once)..
+...[dblock]       - block size in bytes..
+...[ddisk]        - data disk]s major:minor..
+...[mddisk]       - metadata disk]s major:minor..
+...[writes]       - total number of writes to the target..
+...[uniqwrites]   - the number of writes that weren]t duplicates (wereunique)..
+...[dupwrites]    - the number of writes that were duplicates..
+...[readonwrites] - the number of times dm-dedup had to read data from the data
     	         device because a write was misaligned (read-on-write effect)..
-[overwrites]   - the number of writes to a logical block that was
+...[overwrites]   - the number of writes to a logical block that was
     	         written before at least once..
-[newwrites]    - the number of writes to a logical address that was not written
+...[newwrites]    - the number of writes to a logical address that was not written
 		 before even once..
 
 To compute deduplication ratio one needs to device dactual by dused.
