@@ -143,9 +143,9 @@ Dmsetup Status
 Dm-dedup exports various statistics via dmsetup status command. The line
 returned by dmsetup status will contain the following values in the order:
 
-> [name] [start] [end] [type]
-> [dtotal] [dfree] [dused] [dactual] [dblock] [ddisk] [mddisk]
-> [writes] [uniqwrites] [dupwrites] [readonwrites] [overwrites] [newwrites]
+> [name] [start] [end] [type].
+> [dtotal] [dfree] [dused] [dactual] [dblock] [ddisk] [mddisk].
+> [writes] [uniqwrites] [dupwrites] [readonwrites] [overwrites] [newwrites].
 
 * [name], [start], [end], and [type] are generic fields printed by dmsetup tool 
 for any target.
