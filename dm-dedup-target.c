@@ -129,7 +129,6 @@ static int write_to_new_block(struct dedup_config *dc, uint64_t *pbn_new,
 	lbnpbn_value.pbn = *pbn_new;
 
 	do_io(dc, bio, *pbn_new);
-	printk("%s(%d) pbn_new: %llx\n",__func__,__LINE__,*pbn_new);
 
 	r = dc->kvs_lbn_pbn->kvs_insert(dc->kvs_lbn_pbn, (void *)&lbn,
 		sizeof(lbn), (void *)&lbnpbn_value, sizeof(lbnpbn_value));

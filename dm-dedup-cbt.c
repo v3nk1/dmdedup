@@ -610,11 +610,11 @@ static int kvs_lookup_sparse_cowbtree(struct kvstore *kvs, void *key,
 	entry = kmalloc(kvcbt->entry_size, GFP_NOIO);
 	if (!entry)
 		return -ENOMEM;
-
+	memset(entry,0,kvcbt->entry_size);
 	key_val = (*(uint64_t *)key);
-
 repeat:
 
+	printk("%s(%d) key_val: %llx\n",__func__, __LINE__, key_val);
 	r = dm_btree_lookup(&(kvcbt->info), kvcbt->root, &key_val, entry);
 	if (r == -ENODATA) {
 		kfree(entry);
@@ -628,7 +628,7 @@ repeat:
 			kfree(entry);
 			return 1; /* Found exact HASH match */
 		}
-		key_val++;
+		key_val++; /* This is HASH collision hit. */
 		goto repeat;
 	} else {
 		kfree(entry);
@@ -661,7 +661,13 @@ static int kvs_insert_sparse_cowbtree(struct kvstore *kvs, void *key,
 
 
 repeat:
+	/*
+	 * Actually this repeat is for collision free HASH
+	 * We are using 8Byte HASH as a key instead of full
+	 * unique 16Byte HASH.
+	 */
 
+	printk("%s(%d) key_val: %llx\n",__func__, __LINE__, key_val);
 	r = dm_btree_lookup(&(kvcbt->info), kvcbt->root, &key_val, entry);
 	if (r == -ENODATA) {
 		/* Steps needs to be done:
@@ -685,6 +691,7 @@ repeat:
 		kfree(entry);
 		return r;
 	} else if (r >= 0) {
+		/* Hash Collision hit here.*/
 		key_val++;
 		goto repeat;
 	} else {
