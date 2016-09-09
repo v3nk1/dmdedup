@@ -1,8 +1,8 @@
 obj-m += dm-dedup.o
 
 dm-dedup-objs := dm-dedup-cbt.o dm-dedup-hash.o dm-dedup-ram.o  dm-dedup-rw.o dm-dedup-target.o
-
-EXTRA_CFLAGS := -I ${PWD}/../linux-4.4/drivers/md -w
+KERNEL_SRC := /home/ven/dedup/linux-4.4
+EXTRA_CFLAGS := -I ${KERNEL_SRC}/drivers/md -w
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules

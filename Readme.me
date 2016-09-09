@@ -1,0 +1,186 @@
+Dmdedup on hands:
+=================
+
+MD5 HASH is 16Byte.
+LBN PBN is 8Bytes.
+Each chunk size is 4K = 8sect
+Logical block num, LBN = SEEK(sect) / 8(sect)
+Physical blocknum, PBN = The block id when a new block is happened to write to
+			 physical device. Starts from 0.
+Mappings:
+=========
+Basically 2 mappings/lookups are necessary to do deduplication IO 
+to a dedup device.
+
+1. HASH->PBN
+2. LBN ->PBN
+
+For HASH->PBN we use 8byte of 16Bytes HASH as a key/needle.
+For LBN ->PBN we use 8byte LBN as a key/needle.
+
+Why 8Byte of 16Bytes we use here is because for dm_lookup() API
+has been implemented with key/needle of 8byte as an argument to
+lookup. That makes limitation of using 8byte hash instead 16Byte
+unique HASH.
+
+So for lookups 
+	Key = HASH or LBN (8bytes)
+	Outparam or result would be PBN for both lookups.
+				Table 1
+--------------------------------------------------------------------------------
+Hash_PBN	LBN_PBN	 		Comments
+--------------------------------------------------------------------------------
+No		No	new data (at new offset) 		uniquewr, new wr
+No		Yes	new data (overwrite of existing)	uniquewr, over wr
+Yes 		No	dup data (at new offset)		dupwrite, new wr 
+Yes		Yes	dup data (overwrite of existing)	dupwrite, over wr
+---------------------------------------------------------------------------------
+
+Blind rules:
+------------
+[unique write|new write|over write|dup write]
+In lookup no HASH(PBN) found, it's unique write, ie., first time seeing that 4K
+chunk.
+In lookup no LBN (PBN) found, it's new write. ie., writing to new offset.
+In lookup LBN (PBN) found, it's overwrite. ie., writing to pre written offset.
+
+offset, bi_sector:
+==================
+bi_sector = The start sector where the IO is performed.
+	Ex: # dd if=file of=/dev/mapper/mydedup seek=80
+	    Here bi_sector = 80
+offset = bi_sector % 8
+bi_sector(new) = bi_sector/8
+bi_sector(new) = PBN * 8 + offset
+
+So offset would be non zero only if seek is non multiples of 8.
+
+Demonstration of write:
+=======================
+Setting up background, 
+For each 4K ingress data, md5 hash checksum is calculated and is sent for
+HASH_PBN lookup.
+In lookup process is a hit/miss see the Table1.
+To decide whether it is overwrite or newwrite, it is sent for LBN_PBN lookup.
+Again eyes on Table1.
+
+Say I fed the dmdedup device with 5 UNIQUE 4K data chunks at sectors
+16, 24, 32, 40, 80 respectively. 
+
+So lbn's for given sectors are 2, 3, 4 ,5, 10.
+
+So the mappings would look like this,
+	     Table 2				     Table 3
+--------------------------------,	,-------------------------------,
+	HASH	|	PBN	|	|	LBN	|	PBN	|
+--------------------------------|	|-------------------------------|
+	H1	|	0	|	|	2	|	0	|
+	H2	|	1	|	|	3	|	1	|
+	H3	|	2	|	|	4	|	2	|
+	H4	|	3	|	|	5	|	3	|
+	H5	|	4	|	|	10	|	4	|
+---------------------------------	---------------------------------
+
+Scenario 1: Duplicate write
+-----------
+(even seek position, overwrite and new write but not unique write)
+Let's feed another 4K Chunk at seek = (find below).
+HASH calculation is done and it is H3.
+
+I am sending it to lookup(table 2), so it is a hit. From lookup i get PBN for that HASH
+Key, so PBN here is 2. So its a duplicate write.
+	Scenario A: new write
+	-----------
+		seek = 160th sector.
+		LBN for given seek position is 20. Sent it for LBN and PBN lookup(table 3).
+		Its a miss. So it is a new write.
+		Insert LBN PBN map.
+	     Table 2				     Table 3
+--------------------------------,	,-------------------------------,
+	HASH	|	PBN	|	|	LBN	|	PBN	|
+--------------------------------|	|-------------------------------|
+	H1	|	0	|	|	2	|	0	|
+	H2	|	1	|	|	3	|	1	|
+	H3	|	2	|	|	4	|	2	|
+	H4	|	3	|	|	5	|	3	|
+	H5	|	4	|	|	10	|	4	|
+---------------------------------	|	20	|	2	|
+					---------------------------------
+
+		So in summary, it is a duplicate write of 4K chunk to a new offset(2nd instacne).
+
+	Scenario B: over write
+	-----------
+		seek = 40th sector.
+		LBN for given seek position is 5. Sent it for LBN and PBN lookup(table 3)
+		Its a hit. So it is a overwrite.
+		Got PBN(old) of existing data is 3.
+		
+		if (PBN_from_hash,new !=  PBN_from_lbn,old)
+			Just update old PBN with new PBN.
+		else
+			No write, since We are writing Same data to same LBN(offset/seek).
+	     Table 2				     Table 3
+--------------------------------,	,-------------------------------,
+	HASH	|	PBN	|	|	LBN	|	PBN	|
+--------------------------------|	|-------------------------------|
+	H1	|	0	|	|	2	|	0	|
+	H2	|	1	|	|	3	|	1	|
+	H3	|	2	|	|	4	|	2	|
+	H4	|	3	|	|	5	|	3,2	|
+	H5	|	4	|	|	10	|	4	|
+---------------------------------	---------------------------------
+		So in summary, LBN_PBN of table 3 are updated, LBN 5 we got PBN 2.
+
+Scenario 2: Unique write
+-----------
+(even seek position, overwrite and new write but not dup write)
+Let's feed another 4K Chunk at seek = (find below).
+HASH calculation is done and it is H7.
+I am sending it to lookup(table 2), so it is a miss. So unique write.
+	
+	Scenario A: new write
+	-----------
+		seek = 240th sector.
+		LBN for given seek position is 30. Sent it for LBN and PBN lookup(table 3)
+		Its a miss. So it is a new write.
+		Allocate a new block(get PBN id).
+		Insert LBN PBN Map.
+		Write to disk @ bi_sector = pbn * sectors_per_block + offset
+		Insert HASH PBN Map.
+		Done.
+	     Table 2				     Table 3
+--------------------------------,	,-------------------------------,
+	HASH	|	PBN	|	|	LBN	|	PBN	|
+--------------------------------|	|-------------------------------|
+	H1	|	0	|	|	2	|	0	|
+	H2	|	1	|	|	3	|	1	|
+	H3	|	2	|	|	4	|	2	|
+	H4	|	3	|	|	5	|	3	|
+	H5	|	4	|	|	10	|	4	|
+	H7	|	5	|	|	30	|	5	|
+---------------------------------	---------------------------------
+		So in summary, it is a unique write of 4K chunk to a new offset.
+	Scenario B: over write
+	----------- 
+		seek = 40th sector.
+		LBN for given seek position is 5. Sent it for LBN and PBN lookup(table 3)
+		Its a hit. So it is a overwrite.
+		Got PBN(old) of existing data is 3.
+		Allocate a new block(get PBN id 10).
+		Update LBN PBN Map(5,10).
+		Write to disk @ bi_sector = pbn * sectors_per_block + offset
+		Insert HASH PBN Map.
+		Done.
+	     Table 2				     Table 3
+--------------------------------,	,-------------------------------,
+	HASH	|	PBN	|	|	LBN	|	PBN	|
+--------------------------------|	|-------------------------------|
+	H1	|	0	|	|	2	|	0	|
+	H2	|	1	|	|	3	|	1	|
+	H3	|	2	|	|	4	|	2	|
+	H4	|	3	|	|	5	|	3,5	|
+	H5	|	4	|	|	10	|	4	|
+	H7	|	5	|	---------------------------------
+---------------------------------	
+		So in summary, it is a unique write of 4K chunk to a old offset.
