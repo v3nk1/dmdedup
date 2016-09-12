@@ -133,6 +133,19 @@ int compute_hash_bio(struct hash_desc_table *desc_table,
 
 	sg_init_table(&sg, 1);
 	__bio_for_each_segment(bvec, bio, iter, bio->bi_iter) {
+		int x;
+		printk("%s(%d) Write Req, In Data(%d):\n",__func__,__LINE__,bvec.bv_len);
+		for(x=0;x<bvec.bv_len;x++)
+#if 1
+		{
+			if(!(x % 37))
+				printk("\n");
+			printk("%02x ",((u8 *)(page_address(bvec.bv_page)+bvec.bv_offset))[x]);
+		}
+		printk("\n");
+#else
+			printk("%c",((u8 *)(page_address(bvec.bv_page)+bvec.bv_offset))[x]);
+#endif
 		sg_set_page(&sg, bvec.bv_page, bvec.bv_len,
 			    bvec.bv_offset);
 		crypto_hash_update(desc, &sg, sg.length);

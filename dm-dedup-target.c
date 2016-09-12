@@ -62,14 +62,21 @@ static uint64_t bio_lbn(struct dedup_config *dc, struct bio *bio)
 
 static void do_io_remap_device(struct dedup_config *dc, struct bio *bio)
 {
+	int i;
 	bio->bi_bdev = dc->data_dev->bdev;
+	for (i=0; i <= bio->bi_vcnt; i++)
+		printk("%s(%d) bi_vcnt: %d, page: %p, off: %u, len: %u\n",
+					__func__,__LINE__,bio->bi_vcnt,
+					bio->bi_io_vec[i].bv_page,
+					bio->bi_io_vec[i].bv_offset,
+					bio->bi_io_vec[i].bv_len);
 	generic_make_request(bio);
 }
 
 static void do_io(struct dedup_config *dc, struct bio *bio, uint64_t pbn)
 {
 	int offset;
-	printk("%s(%d) bi_sector: %llu, sec/blk: %u\n",__func__,__LINE__,
+	printk("%s(%d) bi_sector: %llu, sect/blk: %u\n",__func__,__LINE__,
 			bio->bi_iter.bi_sector,dc->sectors_per_block);
 	offset = sector_div(bio->bi_iter.bi_sector, dc->sectors_per_block);
 	printk("%s(%d) bi_sector: %llu, offset: %u\n",__func__,__LINE__,bio->bi_iter.bi_sector,offset);

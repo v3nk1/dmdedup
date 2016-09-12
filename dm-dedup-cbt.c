@@ -217,6 +217,7 @@ static int superblock_all_zeroes(struct dm_block_manager *bm, bool *result)
 
 	data_le = dm_block_data(b);
 	*result = true;
+	printk("%s(%d) superblock size: %u\n",__func__,__LINE__,sb_block_size);
 	for (i = 0; i < sb_block_size; i++) {
 		if (data_le[i] != zero) {
 			*result = false;
@@ -251,7 +252,7 @@ static struct metadata *init_meta_cowbtree(void *input_param, bool *unformatted)
 		md = (struct metadata *)meta_bm;
 		goto badbm;
 	}
-
+	/* Checking for previously stored mata data if any */
 	ret = superblock_all_zeroes(meta_bm, unformatted);
 	if (ret) {
 		md = ERR_PTR(ret);
@@ -259,6 +260,10 @@ static struct metadata *init_meta_cowbtree(void *input_param, bool *unformatted)
 	}
 
 	if (!*unformatted) {
+		/*
+		 * Fresh formated disk
+		 * No mata data existed
+		 */
 		struct dm_block *sblock;
 		struct metadata_superblock *disk_super;
 
@@ -294,7 +299,7 @@ static struct metadata *init_meta_cowbtree(void *input_param, bool *unformatted)
 
 		goto begin_trans;
 	}
-
+	/*unformatted, so matadata existed*/
 	ret = dm_tm_create_with_sm(meta_bm, METADATA_SUPERBLOCK_LOCATION,
 				   &tm, &meta_sm);
 	if (ret < 0) {
@@ -346,7 +351,7 @@ badbm:
 static void exit_meta_cowbtree(struct metadata *md)
 {
 	int ret;
-
+	/* Saving mata data to disk */
 	ret = __commit_transaction(md);
 	if (ret < 0)
 		DMWARN("%s: __commit_transaction() failed, error = %d.",
